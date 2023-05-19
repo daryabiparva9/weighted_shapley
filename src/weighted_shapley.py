@@ -23,13 +23,6 @@ import itertools
 
 class Weighted_Shapley:
     def __init__(self, X, y, model, n_features, explanation_type="standard", weights=None, model_type="linear", oracle=None):
-        '''
-        Oracle for sparsest is a dictionary with keys as features and values as a set of sets. Each set is a set of subsets of features that 
-        are not allowed to be in the same ordering as the key feature.
-        
-        
-        
-        '''
         self.X = X
         self.y = y
         self.base_value = model.intercept_
@@ -153,6 +146,8 @@ class Weighted_Shapley:
                     phi.loc[order_num, variable] = phi_pi
                     z_i.append(variable)
             order_num += 1
+            if order_num % 1000 == 0:
+                print(f'we are at order number {order_num}')
         #find the number of zeros for each ordering
         zero_num = (phi == 0).astype(int).sum(axis=1)
         #find the maximum number of zeros
@@ -198,6 +193,15 @@ class Weighted_Shapley:
         elif explanation_type == "sparsest":
             temp_shap = self.find_sparsest_shapley(data_point, sparsest_oracle)
             return self.r_to_shap_format(temp_shap, data_point)
+        elif explanation_type == "markov blanket/sparsest":
+            #we first find the set of parents and children of the target variable
+            #to do this we need to find the sparsest shapley value
+            temp = self.find_sparsest_shapley(data_point, sparsest_oracle)
+            print('one done!')
+            nonzero =(temp != 0)
+            parentchild = nonzero.index[nonzero].tolist()
+            temp_shap = self.find_markov_blanket_shapley(data_point,  parentchild=parentchild, markov_blanket_oracle=sparsest_oracle)
+            return (self.r_to_shap_format(temp_shap, data_point), self.r_to_shap_format(temp, data_point))
         else:
             exit("explanation_type not supported")
     
