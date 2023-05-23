@@ -115,7 +115,7 @@ class Weighted_Shapley:
         phi_i = phi.mean(axis=0)
         return phi_i
     
-    def find_sparsest_shapley(self,data_point, sparsest_oracle):
+    def find_sparsest_shapley(self,data_point, sparsest_oracle, return_standard=False):
         if not sparsest_oracle:
             raise ValueError("The version with no oracle is not yet implemented")
         perms = list(itertools.permutations(self.feature_names))
@@ -133,8 +133,15 @@ class Weighted_Shapley:
                     base = new
                     phi.loc[order_num, variable] = phi_pi
                     z_i.append(variable)
+                    # print(f'variable {variable} is not d-sep given {z_i}')
+                    # print(f'phi_pi is {phi_pi}\n')
+                    
                 #if z_i is in the set of sparsest_oracle[variable] then the variable is d-sep from X_{N+1} given z_i
                 elif set(z_i) in sparsest_oracle[variable]:
+                    # new = self.expected_value(data_point, z_i+[variable])
+                    # phi_pi = new - base
+                    # print(f'variable {variable} is d-sep given {z_i}')
+                    # print(f'phi_pi is {phi_pi}\n')
                     phi_pi = 0
                     phi.loc[order_num, variable] = phi_pi
                     z_i.append(variable)
@@ -142,12 +149,17 @@ class Weighted_Shapley:
                 else:
                     new = self.expected_value(data_point, z_i+[variable])
                     phi_pi = new - base
+                    # print(f'variable {variable} is not d-sep given {z_i}')
+                    # print(f'phi_pi is {phi_pi}\n')
                     base = new
                     phi.loc[order_num, variable] = phi_pi
                     z_i.append(variable)
             order_num += 1
             if order_num % 1000 == 0:
                 print(f'we are at order number {order_num}')
+                
+        if return_standard:
+            phi_standard = phi.mean(axis=0)
         #find the number of zeros for each ordering
         zero_num = (phi == 0).astype(int).sum(axis=1)
         #find the maximum number of zeros
@@ -156,6 +168,8 @@ class Weighted_Shapley:
         phi = phi[zero_num == max_zeronum]
         #find the uniform mean of the orderings with the maximum number of zeros (according to Maximum Entropy principle)
         phi_i = phi.mean(axis=0)
+        if return_standard:
+            return phi_standard, phi_i
         return phi_i
     
     def find_ancestor_shapley(self, data_point, ancestor_oracle):
@@ -193,15 +207,15 @@ class Weighted_Shapley:
         elif explanation_type == "sparsest":
             temp_shap = self.find_sparsest_shapley(data_point, sparsest_oracle)
             return self.r_to_shap_format(temp_shap, data_point)
-        elif explanation_type == "markov blanket/sparsest":
+        elif explanation_type == "markov blanket/sparsest/standard":
             #we first find the set of parents and children of the target variable
             #to do this we need to find the sparsest shapley value
-            temp = self.find_sparsest_shapley(data_point, sparsest_oracle)
+            standard, temp = self.find_sparsest_shapley(data_point, sparsest_oracle, return_standard=True)
             print('one done!')
             nonzero =(temp != 0)
             parentchild = nonzero.index[nonzero].tolist()
             temp_shap = self.find_markov_blanket_shapley(data_point,  parentchild=parentchild, markov_blanket_oracle=sparsest_oracle)
-            return (self.r_to_shap_format(temp_shap, data_point), self.r_to_shap_format(temp, data_point))
+            return (self.r_to_shap_format(standard, data_point), self.r_to_shap_format(temp_shap, data_point), self.r_to_shap_format(temp, data_point))
         else:
             exit("explanation_type not supported")
     
@@ -217,7 +231,8 @@ class Weighted_Shapley:
                 return expected_value
         
     def r_to_shap_format(self, r, data_point):
-
+        #this code is taken from: Remman et al 2022 (Causal versus Marginal Shapley Values for Robotic Lever Manipulation
+        # Controlled using Deep Reinforcement Learning)
         base_values = self.base_value
         values = r.to_numpy()
         print(f' data point type is :{type(data_point)}')
