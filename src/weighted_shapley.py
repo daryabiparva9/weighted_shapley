@@ -229,7 +229,35 @@ class Weighted_Shapley:
                 #print(f'for {subset} coef is {lr.coef_}')
                 expected_value = lr.predict([data_point[subset]])
                 return expected_value
+            
+    def mb_elements(self, data_point, oracle):
+        if oracle == False:
+            raise ValueError("The version with no oracle is not implemented yet")
+        mb_elements = []
         
+        for variable in self.feature_names:
+            z_i = [var for var in self.feature_names if var != variable]
+            if not (set(z_i) in oracle[variable]):
+                mb_elements.append(variable)
+        
+        return mb_elements
+    
+    
+    def parents_children(self, data_point, oracle):
+        if oracle == False:
+            raise ValueError("The version with no oracle is not implemented yet")
+        mb_elements = self.mb_elements(data_point, oracle)
+        parents_children = []
+        #############################################################################
+        #to be completed
+        #############################################################################
+        # for var1 in mb_elements:
+        #     z_i = [var for var in self.feature_names if var != variable]
+        #     if (set(z_i) in oracle[variable]):
+        #         parents_children.append(variable)
+        
+        return parents_children
+    
     def r_to_shap_format(self, r, data_point):
         #this code is taken from: Remman et al 2022 (Causal versus Marginal Shapley Values for Robotic Lever Manipulation
         # Controlled using Deep Reinforcement Learning)
