@@ -199,8 +199,9 @@ class Weighted_Shapley:
             raise ValueError("The version with no oracle is not yet implemented")
         phi = pd.DataFrame(columns = self.feature_names)
         order_num = 0
+        perms = list(itertools.permutations(self.feature_names))
         for graph in ancestor_oracle:
-            for ordering in ancestor_oracle[graph]['compatible_orderings']:
+            for ordering in perms:
                 z_i = []
                 base = self.expected_value(data_point, z_i)
                 for variable in ordering:
@@ -285,9 +286,7 @@ class Weighted_Shapley:
         parents_children = []
         children = []
         spouses = []
-        #############################################################################
-        #to be completed
-        #############################################################################
+        
         for var1 in mb_elements:
             for var2 in mb_elements:
                 if var1 != var2:
