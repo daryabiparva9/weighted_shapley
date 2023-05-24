@@ -180,6 +180,9 @@ class Weighted_Shapley:
         for ordering in ancestor_oracle:
             z_i = []
             base = self.expected_value(data_point, z_i)
+            nonancestors = [var for var in self.feature_names if var not in ordering]
+            for var in nonancestors:
+                phi.loc[order_num, var] = 0.0
             for variable in ordering:
                 new = self.expected_value(data_point, z_i+[variable])
                 phi_pi = new - base
@@ -189,13 +192,46 @@ class Weighted_Shapley:
             order_num += 1
         phi_i = phi.mean(axis=0)
         return phi_i
+    
+    
+    def find_graph_ancestor_shapley(self, data_point, ancestor_oracle):
+        if not ancestor_oracle:
+            raise ValueError("The version with no oracle is not yet implemented")
+        phi = pd.DataFrame(columns = self.feature_names)
+        order_num = 0
+        for graph in ancestor_oracle:
+            for ordering in ancestor_oracle[graph]['compatible_orderings']:
+                z_i = []
+                base = self.expected_value(data_point, z_i)
+                for variable in ordering:
+                    if variable in ancestor_oracle[graph]['non_ancestor']:
+                        phi.loc[order_num, variable] = 0.0
+                    else:
+                        new = self.expected_value(data_point, z_i+[variable])
+                        phi_pi = new - base
+                        base = new
+                        phi.loc[order_num, variable] = phi_pi
+                        z_i.append(variable)
+                order_num += 1
+        print(f'we have {order_num} orderings')
+        print(f'phi shape is {phi.shape}')
+        return phi.mean(axis=0)
+        
+    
       
     def find_shapley(self, data_point, *, sparsest_oracle=False, ancestor_oracle=False, explanation_type="standard"):
         if explanation_type == "standard":
             a = self.find_standard_shapley(data_point)
             return self.r_to_shap_format(a, data_point)
         elif explanation_type == "ancestor":
-            return self.find_ancestor_shapley(data_point, ancestor_oracle)
+            temp = self.find_ancestor_shapley(data_point, ancestor_oracle)
+            
+            return self.r_to_shap_format(temp, data_point)
+        elif explanation_type == "graph ancestor":
+            temp = self.find_graph_ancestor_shapley(data_point, ancestor_oracle)
+            
+            return self.r_to_shap_format(temp, data_point)
+        
         elif explanation_type == "markov blanket":
             #we first find the set of parents and children of the target variable
             #to do this we need to find the sparsest shapley value
@@ -211,7 +247,6 @@ class Weighted_Shapley:
             #we first find the set of parents and children of the target variable
             #to do this we need to find the sparsest shapley value
             standard, temp = self.find_sparsest_shapley(data_point, sparsest_oracle, return_standard=True)
-            print('one done!')
             nonzero =(temp != 0)
             parentchild = nonzero.index[nonzero].tolist()
             temp_shap = self.find_markov_blanket_shapley(data_point,  parentchild=parentchild, markov_blanket_oracle=sparsest_oracle)
@@ -243,20 +278,26 @@ class Weighted_Shapley:
         return mb_elements
     
     
-    def parents_children(self, data_point, oracle):
+    def parents_children_spouses(self, data_point, oracle):
         if oracle == False:
             raise ValueError("The version with no oracle is not implemented yet")
         mb_elements = self.mb_elements(data_point, oracle)
         parents_children = []
+        children = []
+        spouses = []
         #############################################################################
         #to be completed
         #############################################################################
-        # for var1 in mb_elements:
-        #     z_i = [var for var in self.feature_names if var != variable]
-        #     if (set(z_i) in oracle[variable]):
-        #         parents_children.append(variable)
-        
-        return parents_children
+        for var1 in mb_elements:
+            for var2 in mb_elements:
+                if var1 != var2:
+                    zji = [var for var in mb_elements if var != var1 and var != var2]
+                    
+                    if (set(zji) in oracle[var2]):
+                        spouses.append(var2)
+                        children.append(var1)
+        parents_children = [var for var in mb_elements if var not in spouses]
+        return parents_children, spouses, children
     
     def r_to_shap_format(self, r, data_point):
         #this code is taken from: Remman et al 2022 (Causal versus Marginal Shapley Values for Robotic Lever Manipulation
